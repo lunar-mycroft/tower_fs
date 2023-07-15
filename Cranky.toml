@@ -1,0 +1,9 @@
+deny = [
+  "unsafe_code",
+  "clippy::unwrap_used"
+]
+
+warn = [
+  "clippy::pedantic"
+]
+
