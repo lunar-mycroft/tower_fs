@@ -8,6 +8,11 @@ use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use tokio::fs;
 use tower_service::Service;
 
+#[cfg(feature = "http")]
+pub mod http;
+#[cfg(feature = "middleware")]
+pub mod middleware;
+
 #[derive(Debug, Clone, Copy)]
 pub struct FileSystem;
 
@@ -16,7 +21,7 @@ impl<'a> Service<Request<'a>> for FileSystem {
     type Error = std::io::Error;
     type Future = BoxFuture<'a, Result<Response, Self::Error>>;
 
-    /// The `FileSystem` performs no setup of it's own, so it's ready immediately
+    /// The [`FileSystem`] performs no setup of it's own, so it's ready immediately
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
