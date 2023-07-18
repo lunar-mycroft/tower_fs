@@ -1,8 +1,4 @@
-use std::{
-    fs::Permissions,
-    path::{Path, PathBuf},
-    task::Poll,
-};
+use std::{fs::Permissions, path::PathBuf, task::Poll};
 
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use tokio::fs;
@@ -16,17 +12,17 @@ pub mod middleware;
 #[derive(Debug, Clone, Copy)]
 pub struct FileSystem;
 
-impl<'a> Service<Request<'a>> for FileSystem {
+impl Service<Request> for FileSystem {
     type Response = Response;
     type Error = std::io::Error;
-    type Future = BoxFuture<'a, Result<Response, Self::Error>>;
+    type Future = BoxFuture<'static, Result<Response, Self::Error>>;
 
     /// The [`FileSystem`] performs no setup of it's own, so it's ready immediately
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Request<'a>) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         match req {
             Request::Copy { from, to } => fs::copy(from, to).map_ok(Response::Copied).boxed(),
             Request::CreateDir {
@@ -52,9 +48,13 @@ impl<'a> Service<Request<'a>> for FileSystem {
             Request::HardLink { src, dst } => {
                 fs::hard_link(src, dst).map_ok(Response::done).boxed()
             }
-            Request::Open { options, path } => {
-                async move { options.open(path).await.map(Response::File) }.boxed()
+            Request::Open { mode, path } => async move {
+                mode.into_open_options()
+                    .open(path)
+                    .await
+                    .map(Response::File)
             }
+            .boxed(),
             Request::RemoveDir {
                 path,
                 recursive: true,
@@ -82,57 +82,80 @@ impl<'a> Service<Request<'a>> for FileSystem {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Mode {
+    Read,
+    AppendExisting,
+    CreateOrOverwrite,
+    CreateOrAppend,
+    CreateNew,
+}
+
+impl Mode {
+    fn into_open_options(self) -> fs::OpenOptions {
+        let mut options = fs::OpenOptions::new();
+        match self {
+            Self::Read => options.read(true),
+            Self::AppendExisting => options.append(true),
+            Self::CreateOrOverwrite => options.write(true).truncate(true),
+            Self::CreateOrAppend => options.append(true).create(true),
+            Self::CreateNew => options.write(true).create_new(true),
+        };
+        options
+    }
+}
+
 #[derive(Debug, Clone)]
-pub enum Request<'a> {
+pub enum Request {
     Copy {
-        from: &'a Path,
-        to: &'a Path,
+        from: PathBuf,
+        to: PathBuf,
     },
     CreateDir {
-        path: &'a Path,
+        path: PathBuf,
         recursive: bool,
     },
-    FollowLink(&'a Path),
+    FollowLink(PathBuf),
     GetMetadata {
-        path: &'a Path,
+        path: PathBuf,
         follow_symlinks: bool,
     },
     HardLink {
-        src: &'a Path,
-        dst: &'a Path,
+        src: PathBuf,
+        dst: PathBuf,
     },
     Open {
-        options: fs::OpenOptions,
-        path: &'a Path,
+        mode: Mode,
+        path: PathBuf,
     },
     RemoveDir {
-        path: &'a Path,
+        path: PathBuf,
         recursive: bool,
     },
-    RemoveFile(&'a Path),
+    RemoveFile(PathBuf),
     Rename {
-        from: &'a Path,
-        to: &'a Path,
+        from: PathBuf,
+        to: PathBuf,
     },
     SetPermissions {
-        path: &'a Path,
+        path: PathBuf,
         perm: Permissions,
     },
     #[cfg(unix)]
     SymLink {
-        src: &'a Path,
-        dst: &'a Path,
+        src: PathBuf,
+        dst: PathBuf,
     },
     #[cfg(windows)]
     SymlinkDir {
-        src: &'a Path,
-        dst: &'a Path,
+        src: PathBuf,
+        dst: PathBuf,
     },
     SymlinkFile {
-        src: &'a Path,
-        dst: &'a Path,
+        src: PathBuf,
+        dst: PathBuf,
     },
-    Exists(&'a Path),
+    Exists(PathBuf),
 }
 
 #[derive(Debug)]

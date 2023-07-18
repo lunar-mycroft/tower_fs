@@ -9,14 +9,18 @@ bytes = { version = "1.4", optional = true }
 futures = "0.3"
 http = { version = "0.2", optional = true }
 http-body = { version = "0.4", optional = true }
+http-range-header = { version = "0.3", optional = true }
+percent-encoding = { version = "2", optional = true }
 pin-project-lite = "0.2"
+thiserror = { version = "1", optional = true }
 tokio = {version = "1.29", features = ["fs", "io-util"]}
 tokio-util = { version = "0.7", optional = true, features = ["io"] }
+tower-layer = { version = "0.3", optional = true }
 tower-service = "0.3"
 
 [features]
-http = ["dep:bytes", "dep:http", "dep:http-body", "dep:tokio-util"]
-middleware = []
+http = ["dep:bytes", "dep:percent-encoding", "dep:http", "dep:http-body", "dep:http-range-header", "dep:thiserror", "dep:tokio-util"]
+middleware = ["dep:tower-layer"]
 
 [dev-dependencies]
 tokio = {version = "1.29", features = ["macros", "rt"]}
